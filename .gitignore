@@ -1,0 +1,6 @@
+emirge
+*.*vtu*
+*.sqlite*
+*.pkl
+runError*
+runOutput*
