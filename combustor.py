@@ -1531,7 +1531,7 @@ def main(ctx_factory=cl.create_some_context, restart_filename=None,
         if restart_fname != restart_filename:
             restart_data = {
                 "local_mesh": local_mesh,
-                "state": cv,
+                "cv": cv,
                 "temperature_seed": temperature_seed,
                 "t": t,
                 "step": step,
