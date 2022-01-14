@@ -1486,17 +1486,17 @@ def main(ctx_factory=cl.create_some_context, restart_filename=None,
         dv_status_msg = (
             f"\n-------- P (min, max) (Pa) = ({p_min:1.9e}, {p_max:1.9e})")
         dv_status_msg += (
-            f"\n-------- T (min, max) (K)  = ({t_min:7g}, {t_max:7g})")
+            f"\n-------- T (min, max) (K) = ({t_min:7g}, {t_max:7g})")
         dv_status_msg += (
-            f"\n-------- density (min, max) (kg/m^3)  = "
+            f"\n-------- density (min, max) (kg/m^3) = "
             f"({rho_min:1.5e}, {rho_max:1.5e})")
         for i in range(dim):
             dv_status_msg += (
-                f"\n-------- velocity[{i}] (min, max) (m/s)  = "
+                f"\n-------- velocity[{i}] (min, max) (m/s) = "
                 f"({vel_min[i]:1.5e}, {vel_max[i]:1.5e})")
         for i in range(nspecies):
             dv_status_msg += (
-                f"\n-------- y_{species_names[i]} (min, max) (m/s) = "
+                f"\n-------- y_{species_names[i]} (min, max) = "
                 f"({y_min[i]:1.3e}, {y_max[i]:1.3e})")
         status_msg += dv_status_msg
 
