@@ -300,6 +300,7 @@ class InitACTII:
             P0, T0, temp_wall, temp_sigma, vel_sigma, gamma_guess,
             mass_frac=None,
             inj_pres, inj_temp, inj_vel, inj_mass_frac=None,
+            temp_sigma_injection, vel_sigma_injection,
             inj_ytop, inj_ybottom
     ):
         r"""Initialize mixture parameters.
@@ -363,6 +364,9 @@ class InitACTII:
         self._inj_pres = inj_pres
         self._inj_temp = inj_temp
         self._inj_vel = inj_vel
+
+        self._temp_sigma_injection = temp_sigma_injection
+        self._vel_sigma_injection = vel_sigma_injection
         self._inj_mass_frac = inj_mass_frac
         self._inj_ytop = inj_ytop
         self._inj_ybottom = inj_ybottom
@@ -536,7 +540,7 @@ class InitACTII:
         # smooth out the injection profile
         # relax to the cavity temperature/pressure/velocity
         inj_x0 = 0.717
-        inj_sigma = 1000
+        inj_sigma = self._vel_sigma_injection
 
         inj_tanh = inj_sigma*(inj_x0 - xpos)
         inj_weight = 0.5*(1.0 - actx.np.tanh(inj_tanh))
@@ -552,7 +556,7 @@ class InitACTII:
 
         # modify the temperature in the near wall region to match the
         # isothermal boundaries
-        sigma = self._temp_sigma
+        sigma = self._temp_sigma_injection
         wall_temperature = self._temp_wall
         smoothing_top = actx.np.tanh(sigma*(actx.np.abs(ypos-self._inj_ytop)))
         smoothing_bottom = actx.np.tanh(sigma*(actx.np.abs(ypos-self._inj_ybottom)))
@@ -884,6 +888,16 @@ def main(ctx_factory=cl.create_some_context, restart_filename=None,
         print(f"\tTime integration {integrator}")
         print("#### Simluation control data: ####\n")
 
+    if rank == 0:
+        print("\n#### Simluation health check data: ####")
+        print(f"\tPressure min = {health_pres_min}")
+        print(f"\tPressure max = {health_pres_max}")
+        print(f"\tTemperature min = {health_temp_min}")
+        print(f"\tTemperature max = {health_temp_max}")
+        print(f"\tMass fraction min = {health_mass_frac_min}")
+        print(f"\tMass fraction max = {health_mass_frac_max}")
+        print("#### Simluation health check data: ####\n")
+
     timestepper = rk4_step
     if integrator == "euler":
         timestepper = euler_step
@@ -923,13 +937,17 @@ def main(ctx_factory=cl.create_some_context, restart_filename=None,
     total_pres_inflow = 2.745e5
     total_temp_inflow = 2076.43
 
+    # injection flow properties
+    total_pres_inj = 77000
+    total_temp_inj = 300.0
+
     throat_height = 3.61909e-3
     inlet_height = 0.01167548819733 + 0.0083245
     outlet_height = inlet_height
     inlet_area_ratio = inlet_height/throat_height
     outlet_area_ratio = outlet_height/throat_height
 
-    injector_height = 1.59e-3
+    #injector_height = 1.59e-3
 
     # {{{  Set up initial state using Cantera
 
@@ -1090,13 +1108,24 @@ def main(ctx_factory=cl.create_some_context, restart_filename=None,
         print(f"\toutlet velocity {vel_outflow[0]}")
 
     # set the injection pressure to the pressure in the cavity
-    pres_injection = pres_inflow
-    temp_injection = 350.0
-    mdot_injection = 0.165387/1000.
+    inj_mach = 1.0
+    # guess based on C2H4/H2 mix
+    gamma_inj = 0.5*(1.24 + 1.4)
+
+    pres_injection = getIsentropicPressure(mach=inj_mach,
+                                           P0=total_pres_inj,
+                                           gamma=gamma_inj)
+    temp_injection = getIsentropicTemperature(mach=inlet_mach,
+                                              T0=total_temp_inj,
+                                              gamma=gamma_inj)
+    #pres_injection = pres_inflow
+    #temp_injection = 350.0
+    #mdot_injection = 0.165387/1000.
 
     cantera_soln.TPY = temp_injection, pres_injection, y_fuel
     rho_injection = cantera_soln.density
-    vel_injection[0] = -mdot_injection/rho_injection/injector_height
+    #vel_injection[0] = -mdot_injection/rho_injection/injector_height
+    vel_injection[0] = -inj_mach*math.sqrt(gamma_inj*pres_injection/rho_injection)
 
     if rank == 0:
         print(f"\tinjector temperature {temp_injection}")
@@ -1118,10 +1147,11 @@ def main(ctx_factory=cl.create_some_context, restart_filename=None,
     geometry_top = comm.bcast(geometry_top, root=0)
 
     # parameters to adjust the shape of the initialization
-    vel_sigma = 2000
+    vel_sigma = 2500
     temp_sigma = 2500
-    vel_sigma_injection = 2000
-    temp_sigma_injection = 2500
+    # adjusted to match the mass flow rate
+    vel_sigma_injection = 5000
+    temp_sigma_injection = 5000
     temp_wall = 300
 
     inj_ymin = -0.0243245
@@ -1133,6 +1163,8 @@ def main(ctx_factory=cl.create_some_context, restart_filename=None,
                           mass_frac=y, gamma_guess=gg,
                           inj_pres=pres_injection, inj_temp=temp_injection,
                           inj_vel=vel_injection, inj_mass_frac=y_fuel,
+                          temp_sigma_injection=temp_sigma_injection,
+                          vel_sigma_injection=vel_sigma_injection,
                           inj_ytop=inj_ymax, inj_ybottom=inj_ymin)
 
     _inflow_init = UniformModified(
@@ -1568,7 +1600,7 @@ def main(ctx_factory=cl.create_some_context, restart_filename=None,
             health_error = True
             t_min = actx.to_numpy(nodal_min(discr, "vol", temperature))
             t_max = actx.to_numpy(nodal_max(discr, "vol", temperature))
-            logger.info(f"Pressure range violation ({t_min=}, {t_max=})")
+            logger.info(f"Temperature range violation ({t_min=}, {t_max=})")
 
         for i in range(nspecies):
             if global_reduce(check_range_local(discr, "vol",
