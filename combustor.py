@@ -540,7 +540,7 @@ class InitACTII:
         # smooth out the injection profile
         # relax to the cavity temperature/pressure/velocity
         inj_x0 = 0.717
-        inj_sigma = self._vel_sigma_injection
+        inj_sigma = 1000
 
         inj_tanh = inj_sigma*(inj_x0 - xpos)
         inj_weight = 0.5*(1.0 - actx.np.tanh(inj_tanh))
@@ -569,7 +569,7 @@ class InitACTII:
 
         # modify the velocity in the near-wall region to have a tanh profile
         # this approximates the BL velocity profile
-        sigma = self._vel_sigma
+        sigma = self._vel_sigma_injection
         smoothing_top = actx.np.tanh(sigma*(actx.np.abs(ypos-self._inj_ytop)))
         smoothing_bottom = actx.np.tanh(sigma*(actx.np.abs(ypos-self._inj_ybottom)))
         inj_velocity[0] = inj_velocity[0]*smoothing_top*smoothing_bottom
