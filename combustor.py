@@ -539,20 +539,26 @@ class InitACTII:
 
         # smooth out the injection profile
         # relax to the cavity temperature/pressure/velocity
-        inj_x0 = 0.717
+        inj_x0 = 0.713
+        inj_fuel_x0 = 0.717
         inj_sigma = 1000
+
+        # seperate the fuel from the flow, so the flow transitions to injection
+        # conditions before we add the fuel into the mix
+        inj_tanh = inj_sigma*(inj_fuel_x0 - xpos)
+        inj_weight = 0.5*(1.0 - actx.np.tanh(inj_tanh))
+        for i in range(self._nspecies):
+            inj_y[i] = y[i] + (inj_y[i] - y[i])*inj_weight
 
         inj_tanh = inj_sigma*(inj_x0 - xpos)
         inj_weight = 0.5*(1.0 - actx.np.tanh(inj_tanh))
         inj_pressure = pressure + (self._inj_pres - pressure)*inj_weight
         inj_temperature = temperature + (self._inj_temp - temperature)*inj_weight
-        for i in range(self._nspecies):
-            inj_y[i] = y[i] + (inj_y[i] - y[i])*inj_weight
 
         # we need to calculate the velocity from a prescribed mass flow rate
         # this will need to take into account the velocity relaxation at the
         # injector walls
-        inj_velocity[0] = velocity[0] + (self._inj_vel[0] - velocity[0])
+        inj_velocity[0] = velocity[0] + (self._inj_vel[0] - velocity[0])*inj_weight
 
         # modify the temperature in the near wall region to match the
         # isothermal boundaries
@@ -1746,7 +1752,7 @@ def main(ctx_factory=cl.create_some_context, restart_filename=None,
 if __name__ == "__main__":
     import sys
 
-    logging.basicConfig(format="%(message)s", level=logging.INFO)
+    #logging.basicConfig(format="%(message)s", level=logging.INFO)
 
     import argparse
     parser = argparse.ArgumentParser(
