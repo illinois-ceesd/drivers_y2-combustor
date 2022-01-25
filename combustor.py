@@ -585,7 +585,7 @@ class InitACTII:
 
         #sos = eos.sound_speed(cv)
         #print(f"sos {sos}")
-        inj_velocity[0] = inj_mach*eos.sound_speed(inj_cv, inj_temperature)
+        inj_velocity[0] = -inj_mach*eos.sound_speed(inj_cv, inj_temperature)
 
         # relax the pressure at the cavity/injector interface
         inj_pressure = pressure + (inj_pressure - pressure)*inj_weight
@@ -729,6 +729,9 @@ class UniformModified:
         pressure = self._pressure * ones
         temperature = self._temperature * ones
 
+        #print(f"{self._pressure}")
+        #print(f"{self._temperature}")
+
         # modify the temperature in the near wall region to match
         # the isothermal boundaries
         sigma = self._temp_sigma
@@ -747,6 +750,8 @@ class UniformModified:
         else:
             mass = pressure/temperature/eos.gas_const()
         specmass = mass * y
+
+        #print(f"{mass}")
 
         sigma = self._vel_sigma
         # modify the velocity profile from uniform
@@ -980,7 +985,7 @@ def main(ctx_factory=cl.create_some_context, restart_filename=None,
     total_temp_inflow = 2076.43
 
     # injection flow properties
-    total_pres_inj = 77000
+    total_pres_inj = 50400
     total_temp_inj = 300.0
 
     throat_height = 3.61909e-3
@@ -1157,7 +1162,7 @@ def main(ctx_factory=cl.create_some_context, restart_filename=None,
     pres_injection = getIsentropicPressure(mach=inj_mach,
                                            P0=total_pres_inj,
                                            gamma=gamma_inj)
-    temp_injection = getIsentropicTemperature(mach=inlet_mach,
+    temp_injection = getIsentropicTemperature(mach=inj_mach,
                                               T0=total_temp_inj,
                                               gamma=gamma_inj)
     #pres_injection = pres_inflow
