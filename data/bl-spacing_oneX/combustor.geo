@@ -151,6 +151,20 @@ Field[12].DistMin = 0.0002;
 Field[12].DistMax = 0.005;
 Field[12].StopAtDistMax = 1;
 
+// Create distance field from curves, injector only
+Field[13] = Distance;
+Field[13].CurvesList = {501,503};
+Field[13].NumPointsPerCurve = 1000000;
+
+//Create threshold field that varrries element size near boundaries
+Field[14] = Threshold;
+Field[14].InField = 13;
+Field[14].SizeMin = injectorsize / boundratio;
+Field[14].SizeMax = injectorsize;
+Field[14].DistMin = 0.00001;
+Field[14].DistMax = 0.0010;
+Field[14].StopAtDistMax = 1;
+
 nozzle_start = 0.27;
 nozzle_end = 0.30;
 //  background mesh size in the isolator (downstream of the nozzle)
@@ -210,7 +224,7 @@ Field[7].VOut = bigsize;
 
 // take the minimum of all defined meshing fields
 Field[100] = Min;
-Field[100].FieldsList = {2, 3, 4, 5, 6, 7};
+Field[100].FieldsList = {2, 3, 4, 5, 6, 7, 14};
 Background Field = 100;
 
 Mesh.MeshSizeExtendFromBoundary = 0;
