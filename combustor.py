@@ -519,6 +519,7 @@ class InitACTII:
         # initially in pressure/temperature equilibrium with the cavity
         #inj_left = 0.71
         inj_left = 0.7074
+        #inj_left = 0.65
         inj_right = 0.73
         inj_top = -0.0226
         inj_bottom = -0.025
@@ -544,13 +545,29 @@ class InitACTII:
         # smooth out the injection profile
         # relax to the cavity temperature/pressure/velocity
         inj_x0 = 0.712
-        inj_fuel_x0 = 0.717
-        inj_sigma = 1000
+        #inj_fuel_x0 = 0.717
+        inj_fuel_x0 = 0.7
+        inj_fuel_y0 = -0.0243245 - 3.e-3
+        inj_fuel_y1 = -0.0227345 + 3.e-3
+        inj_sigma = 1500
         gamma_guess_inj = self._inj_gamma_guess
 
-        # seperate the fuel from the flow, so the flow transitions to injection
-        # conditions before we add the fuel into the mix
+        # seperate the fuel from the flow, allow the fuel to spill out into the
+        # cavity ahead of hte injection flow, see if this helps startup
+        # left extent
         inj_tanh = inj_sigma*(inj_fuel_x0 - xpos)
+        inj_weight = 0.5*(1.0 - actx.np.tanh(inj_tanh))
+        for i in range(self._nspecies):
+            inj_y[i] = y[i] + (inj_y[i] - y[i])*inj_weight
+
+        # bottom extent
+        inj_tanh = inj_sigma*(inj_fuel_y0 - ypos)
+        inj_weight = 0.5*(1.0 - actx.np.tanh(inj_tanh))
+        for i in range(self._nspecies):
+            inj_y[i] = y[i] + (inj_y[i] - y[i])*inj_weight
+
+        # top extent
+        inj_tanh = inj_sigma*(ypos - inj_fuel_y1)
         inj_weight = 0.5*(1.0 - actx.np.tanh(inj_tanh))
         for i in range(self._nspecies):
             inj_y[i] = y[i] + (inj_y[i] - y[i])*inj_weight
@@ -616,13 +633,20 @@ class InitACTII:
         smoothing_bottom = actx.np.tanh(sigma*(actx.np.abs(ypos-self._inj_ybottom)))
         inj_velocity[0] = inj_velocity[0]*smoothing_top*smoothing_bottom
 
+        # use the species field with fuel added everywhere
+        for i in range(self._nspecies):
+            #y[i] = actx.np.where(inside_injector, inj_y[i], y[i])
+            y[i] = inj_y[i]
+
+        # recompute the mass and energy (outside the injector) to account for
+        # the change in mass fraction
+        mass = eos.get_density(pressure, temperature, y)
+        energy = mass*eos.get_internal_energy(temperature, y)
+
         mass = actx.np.where(inside_injector, inj_mass, mass)
         velocity[0] = actx.np.where(inside_injector, inj_velocity[0], velocity[0])
         energy = actx.np.where(inside_injector, inj_energy, energy)
-        for i in range(self._nspecies):
-            y[i] = actx.np.where(inside_injector, inj_y[i], y[i])
-
-        mom = velocity*mass
+        mom = mass*velocity
         energy = (energy + np.dot(mom, mom)/(2.0*mass))
         return make_conserved(
             dim=self._dim,
