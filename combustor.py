@@ -40,11 +40,9 @@ from pytools.obj_array import make_obj_array
 from functools import partial
 
 
-from meshmode.array_context import (
-    PyOpenCLArrayContext,
-    SingleGridWorkBalancingPytatoArrayContext as PytatoPyOpenCLArrayContext
-    #PytatoPyOpenCLArrayContext
-)
+from grudge.array_context import MPIPytatoPyOpenCLArrayContext as PytatoPyOpenCLArrayContext
+from meshmode.array_context import PyOpenCLArrayContext
+
 from mirgecom.profiling import PyOpenCLProfilingArrayContext
 from arraycontext import thaw, freeze, flatten, unflatten, to_numpy, from_numpy
 from meshmode.mesh import BTAG_ALL, BTAG_NONE  # noqa
@@ -104,19 +102,19 @@ class SingleLevelFilter(logging.Filter):
             return (record.levelno == self.passlevel)
 
 
-h1 = logging.StreamHandler(sys.stdout)
-f1 = SingleLevelFilter(logging.INFO, False)
-h1.addFilter(f1)
-root_logger = logging.getLogger()
-root_logger.addHandler(h1)
-h2 = logging.StreamHandler(sys.stderr)
-f2 = SingleLevelFilter(logging.INFO, True)
-h2.addFilter(f2)
-root_logger.addHandler(h2)
+# h1 = logging.StreamHandler(sys.stdout)
+# f1 = SingleLevelFilter(logging.INFO, False)
+# h1.addFilter(f1)
+#root_logger = logging.getLogger()
+# root_logger.addHandler(h1)
+# h2 = logging.StreamHandler(sys.stderr)
+# f2 = SingleLevelFilter(logging.INFO, True)
+# h2.addFilter(f2)
+# root_logger.addHandler(h2)
 
 logger = logging.getLogger(__name__)
 #logger = logging.getLogger("my.logger")
-logger.setLevel(logging.DEBUG)
+# logger.setLevel(logging.INFO)
 #logger.debug("A DEBUG message")
 #logger.info("An INFO message")
 #logger.warning("A WARNING message")
@@ -798,6 +796,7 @@ class UniformModified:
 @mpi_entry_point
 def main(ctx_factory=cl.create_some_context, restart_filename=None,
          use_profiling=False, use_logmgr=True, user_input_file=None,
+         use_overintegration=False,
          actx_class=PyOpenCLArrayContext, casename=None):
     """Drive the Y0 example."""
     cl_ctx = ctx_factory()
@@ -824,9 +823,12 @@ def main(ctx_factory=cl.create_some_context, restart_filename=None,
         queue = cl.CommandQueue(cl_ctx)
 
     # main array context for the simulation
-    actx = actx_class(
-        queue,
-        allocator=cl_tools.MemoryPool(cl_tools.ImmediateAllocator(queue)))
+    if actx_class == PytatoPyOpenCLArrayContext:
+        actx = actx_class(comm, queue, mpi_base_tag=1200)
+    else:
+        actx = actx_class(
+            queue,
+            allocator=cl_tools.MemoryPool(cl_tools.ImmediateAllocator(queue)))
 
     # an array context for things that just can't lazy
     init_actx = PyOpenCLArrayContext(queue,
@@ -1340,9 +1342,25 @@ def main(ctx_factory=cl.create_some_context, restart_filename=None,
     if rank == 0:
         logging.info("Making discretization")
 
+    from grudge.dof_desc import DISCR_TAG_BASE, DISCR_TAG_QUAD
+    from meshmode.discretization.poly_element import \
+        default_simplex_group_factory, QuadratureSimplexGroupFactory
+
     discr = EagerDGDiscretization(
-        actx, local_mesh, order=order, mpi_communicator=comm
+        actx, local_mesh,
+        discr_tag_to_group_factory={
+            DISCR_TAG_BASE: default_simplex_group_factory(
+                base_dim=local_mesh.dim, order=order),
+            DISCR_TAG_QUAD: QuadratureSimplexGroupFactory(2*order + 1)
+        },
+        mpi_communicator=comm
     )
+
+    if use_overintegration:
+        quadrature_tag = DISCR_TAG_QUAD
+    else:
+        quadrature_tag = None
+
     if rank == 0:
         logging.info("Done making discretization")
 
