@@ -3,7 +3,7 @@ nrestart: 10
 nhealth: 1
 nstatus: 1
 current_dt: 1.0e-9
-t_final: 2.e-8
+t_final: 5.e-9
 order:  3
 alpha_sc: 0.01
 s0_sc: -5.0
